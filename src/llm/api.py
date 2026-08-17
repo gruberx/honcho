@@ -73,6 +73,7 @@ async def honcho_llm_call(
     trace_name: str | None = None,
     iteration_callback: IterationCallback | None = None,
     telemetry: LLMTelemetryContext | None = None,
+    wait_strategy: wait_exponential | None = None,
 ) -> HonchoLLMCallResponse[M]: ...
 
 
@@ -102,6 +103,7 @@ async def honcho_llm_call(
     trace_name: str | None = None,
     iteration_callback: IterationCallback | None = None,
     telemetry: LLMTelemetryContext | None = None,
+    wait_strategy: wait_exponential | None = None,
 ) -> HonchoLLMCallResponse[str]: ...
 
 
@@ -131,6 +133,7 @@ async def honcho_llm_call(
     trace_name: str | None = None,
     iteration_callback: IterationCallback | None = None,
     telemetry: LLMTelemetryContext | None = None,
+    wait_strategy: wait_exponential | None = None,
 ) -> AsyncIterator[HonchoLLMCallStreamChunk] | StreamingResponseWithMetadata: ...
 
 
@@ -159,6 +162,7 @@ async def honcho_llm_call(
     trace_name: str | None = None,
     iteration_callback: IterationCallback | None = None,
     telemetry: LLMTelemetryContext | None = None,
+    wait_strategy: wait_exponential | None = None,
 ) -> (
     HonchoLLMCallResponse[Any]
     | AsyncIterator[HonchoLLMCallStreamChunk]
@@ -173,6 +177,10 @@ async def honcho_llm_call(
         ValidationException: If streaming and tool calling are combined
                              without `stream_final_only=True`.
     """
+    # If wait_strategy is not passed from dream, we set it to the default value.
+    if wait_strategy is None:
+        wait_strategy = wait_exponential(multiplier=1, min=4, max=10)
+
     runtime_model_config = resolve_runtime_model_config(model_config)
 
     # Caller kwargs left at None are resolved downstream by
@@ -279,7 +287,8 @@ async def honcho_llm_call(
     if enable_retry:
         decorated = retry(
             stop=stop_after_attempt(retry_attempts),
-            wait=wait_exponential(multiplier=1, min=4, max=10),
+            #wait=wait_exponential(multiplier=1, min=4, max=10),
+            wait=wait_strategy,
             before_sleep=before_retry_callback,
         )(decorated)
 
@@ -392,7 +401,8 @@ async def honcho_llm_call(
             if enable_retry:
                 wrapped = retry(
                     stop=stop_after_attempt(retry_attempts),
-                    wait=wait_exponential(multiplier=1, min=4, max=10),
+                    #wait=wait_exponential(multiplier=1, min=4, max=10),
+                    wait=wait_strategy,
                     before_sleep=before_retry_callback,
                 )(wrapped)
             result: (
@@ -464,6 +474,7 @@ async def honcho_llm_call(
             iteration_callback=iteration_callback,
             telemetry=telemetry,
             langfuse_run_handle=run_handle,
+            wait_strategy=wait_strategy,
         )
     except BaseException:
         if run_handle is not None:

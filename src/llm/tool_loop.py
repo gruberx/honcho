@@ -260,6 +260,7 @@ async def stream_final_response(
     retry_attempts: int,
     before_retry_callback: Callable[[Any], None],
     telemetry: LLMTelemetryContext | None = None,
+    wait_strategy: wait_exponential | None = None,
 ) -> AsyncIterator[HonchoLLMCallStreamChunk]:
     """Stream the final response after tool execution is complete.
 
@@ -271,6 +272,8 @@ async def stream_final_response(
     had already settled on fallback. Tenacity retries re-issue the same
     streaming call against the same pinned model for transient errors.
     """
+    if wait_strategy is None:
+        wait_strategy = wait_exponential(multiplier=1, min=4, max=10)
 
     # Bump the per-retry attempt index inside `_setup_stream`. The pinned
     # `winning_plan.attempt` is frozen from before retries started; without
@@ -322,7 +325,8 @@ async def stream_final_response(
     if enable_retry:
         wrapped = retry(
             stop=stop_after_attempt(retry_attempts),
-            wait=wait_exponential(multiplier=1, min=4, max=10),
+            #wait=wait_exponential(multiplier=1, min=4, max=10),
+            wait=wait_strategy,
             before_sleep=before_retry_callback,
         )(_setup_stream)
         stream = await wrapped()
@@ -357,6 +361,7 @@ async def execute_tool_loop(
     iteration_callback: IterationCallback | None = None,
     telemetry: LLMTelemetryContext | None = None,
     langfuse_run_handle: Any | None = None,
+    wait_strategy: wait_exponential | None = None,
 ) -> HonchoLLMCallResponse[Any] | StreamingResponseWithMetadata:
     """Run the iterative tool calling loop for agentic LLM interactions.
 
@@ -370,6 +375,9 @@ async def execute_tool_loop(
         Final HonchoLLMCallResponse with accumulated token counts and tool call
         history, or a StreamingResponseWithMetadata if stream_final=True.
     """
+    if wait_strategy is None:
+        wait_strategy = wait_exponential(multiplier=1, min=4, max=10)
+
     from .conversation import count_message_tokens, truncate_messages_to_fit
 
     if not MIN_TOOL_ITERATIONS <= max_tool_iterations <= MAX_TOOL_ITERATIONS:
@@ -462,7 +470,8 @@ async def execute_tool_loop(
             if enable_retry:
                 call_func = retry(
                     stop=stop_after_attempt(retry_attempts),
-                    wait=wait_exponential(multiplier=1, min=4, max=10),
+                    #wait=wait_exponential(multiplier=1, min=4, max=10),
+                    wait=wait_strategy,
                     before_sleep=before_retry_callback,
                 )(_call_with_messages)
             else:
@@ -537,6 +546,7 @@ async def execute_tool_loop(
                         retry_attempts=retry_attempts,
                         before_retry_callback=before_retry_callback,
                         telemetry=stream_telemetry,
+                        wait_strategy=wait_strategy,
                     )
                     return StreamingResponseWithMetadata(
                         stream=stream,
@@ -702,6 +712,7 @@ async def execute_tool_loop(
             retry_attempts=retry_attempts,
             before_retry_callback=before_retry_callback,
             telemetry=stream_telemetry,
+            wait_strategy=wait_strategy,
         )
         return StreamingResponseWithMetadata(
             stream=stream,
@@ -750,7 +761,8 @@ async def execute_tool_loop(
     if enable_retry:
         final_call_func = retry(
             stop=stop_after_attempt(retry_attempts),
-            wait=wait_exponential(multiplier=1, min=4, max=10),
+            #wait=wait_exponential(multiplier=1, min=4, max=10),
+            wait=wait_strategy,
             before_sleep=before_retry_callback,
         )(_final_call)
     else:
