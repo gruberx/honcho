@@ -366,9 +366,9 @@ If you update it, send the full deduplicated list and remove stale entries.
                     observer=observer,
                     observed=observed,
                     track_name=f"Dreamer/{self.name}",
+                ),
                 retry_attempts = 5,
                 wait_strategy = wait_exponential(multiplier=60, min=60, max=240),
-                ),
             )
 
             # Log metrics
